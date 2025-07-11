@@ -221,6 +221,8 @@ trait VitsModelCommons {
         let config = self.get_config();
         let mut phoneme_ids: Vec<i64> = Vec::with_capacity((phonemes.len() + 1) * 2);
         phoneme_ids.push(bos_id);
+        // append padding in front to behave the same way piper-phonemize does
+        phoneme_ids.push(pad_id);
         for phoneme in phonemes.chars() {
             if let Some(id) = config.phoneme_id_map.get(&phoneme) {
                 phoneme_ids.push(*id.first().unwrap());
