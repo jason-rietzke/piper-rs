@@ -69,6 +69,7 @@ fn create_inference_session(model_path: &Path) -> Result<Session, ort::Error> {
         // .with_inter_threads(16)?
         // .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
         .with_memory_pattern(false)?
+        .with_cpu_memory_arena(false)?
         .commit_from_file(model_path)
 }
 
