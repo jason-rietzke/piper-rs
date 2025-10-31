@@ -313,7 +313,9 @@ impl VitsModel {
 
         let session = &self.session;
         let timer = std::time::Instant::now();
-        let outputs = {
+
+        // Scope SessionOutputs to release ONNX memory immediately after copying audio
+        let audio = {
             let mut inputs = vec![
                 SessionInputValue::from(Value::from_array(phoneme_inputs).unwrap()),
                 SessionInputValue::from(Value::from_array(input_lengths).unwrap()),
@@ -324,7 +326,7 @@ impl VitsModel {
                     Value::from_array(sid_tensor).unwrap(),
                 ));
             }
-            match session.run(SessionInputs::from(inputs.as_slice())) {
+            let outputs = match session.run(SessionInputs::from(inputs.as_slice())) {
                 Ok(out) => out,
                 Err(e) => {
                     return Err(PiperError::OperationError(format!(
@@ -332,21 +334,23 @@ impl VitsModel {
                         e
                     )))
                 }
-            }
-        };
+            };
+
+            let output_tensor = match outputs[0].try_extract_tensor::<f32>() {
+                Ok(out) => out,
+                Err(e) => {
+                    return Err(PiperError::OperationError(format!(
+                        "Failed to run model inference. Error: {}",
+                        e
+                    )))
+                }
+            };
+
+            // Copy audio immediately, then outputs drops at end of scope
+            Vec::from(output_tensor.view().as_slice().unwrap())
+        }; // SessionOutputs dropped here, releasing ONNX memory
+
         let inference_ms = timer.elapsed().as_millis() as f32;
-
-        let outputs = match outputs[0].try_extract_tensor::<f32>() {
-            Ok(out) => out,
-            Err(e) => {
-                return Err(PiperError::OperationError(format!(
-                    "Failed to run model inference. Error: {}",
-                    e
-                )))
-            }
-        };
-
-        let audio = Vec::from(outputs.view().as_slice().unwrap());
 
         Ok(Audio::new(
             audio.into(),
